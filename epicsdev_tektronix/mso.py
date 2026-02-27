@@ -1,6 +1,6 @@
 """EPICS PVAccess server for Tektronix MSO oscilloscopes using epicsdev module."""
 # pylint: disable=invalid-name
-__version__ = 'v1.0.3 26-02-13'# cleanup
+__version__ = 'v2.0.0 26-02-25'# Updated for epicsdev v3.x compatibility.
 # Note, visa INSTR works more reliably than SOCKET, but waveform acquisition is ~10 times slower
 #TODO: Timing does not match for 0.3 s: cycleTime=2.0, acquire_wf=0.7, sleep=1.0
 import sys
@@ -13,9 +13,9 @@ import numpy as np
 import pyvisa as visa
 from pyvisa.errors import VisaIOError
 
-from epicsdev.epicsdev import  Server, SPV, init_epicsdev, sleep,\
+from epicsdev.epicsdev import  Server, init_epicsdev, sleep,\
     serverState, set_server, publish, pvv,\
-    printi, printe, printw, printv, printvv
+    printi, printe, printw, printv, printvv, __version__ as epicsdev_version
 
 #``````````````````Constants
 Threadlock = threading.Lock()
@@ -29,89 +29,86 @@ BigEndian = False# Defined in configure_scope(WFMOUTPRE:BYT_Or LSB)
 #``````````````````PVs defined here```````````````````````````````````````````
 def myPVDefs():
     """PV definitions"""
-    SET,U,LL,LH,SCPI = 'setter','units','limitLow','limitHigh','scpi'
-    alarm = {'valueAlarm':{'lowAlarmLimit':-9., 'highAlarmLimit':9.}}
+    F, SET, U, LL, LH, SCPI = 'features', 'setter', 'units', 'limitLow', 'limitHigh', 'scpi'
     pvDefs = [
 # instruments's PVs
 ['setup', 'Save/recall instrument state to/from latest or operational setup',
-    SPV(['Setup','Save latest','Save oper','Recall latest','Recall oper'],'WD'),{
-    SET:set_setup}],
-['visaResource', 'VISA resource to access the device', SPV(pargs.resource,'R'), {}],
-['dateTime',    'Scope`s date & time', SPV('N/A'), {}],
-['acqCount',    'Number of acquisition recorded', SPV(0), {}],
-['scopeAcqCount',  'Acquisition count of the scope', SPV(0),{
+    ['Setup','Save latest','Save oper','Recall latest','Recall oper'],
+    {F:'WD', SET:set_setup}],
+['visaResource', 'VISA resource to access the device', pargs.resource, {F:'R'}],
+['dateTime',    'Scope`s date & time', 'N/A', {}],
+['acqCount',    'Number of acquisition recorded', 0, {}],
+['scopeAcqCount',  'Acquisition count of the scope', 0,{
     SCPI:'ACQuire:NUMACq'}],
-['lostTrigs',   'Number of triggers lost',  SPV(0), {}],
+['lostTrigs',   'Number of triggers lost',  0, {}],
 ['instrCtrl',   'Scope control commands',
-    SPV('*IDN?,*RST,*CLS,*ESR?,*OPC?,*STB?'.split(','),'WD'), {}],
-['instrCmdS',   'Execute a scope command. Features: RWE',  SPV('*IDN?','W'),{
+    '*IDN?,*RST,*CLS,*ESR?,*OPC?,*STB?'.split(','), {F:'WD'}],
+['instrCmdS',   'Execute a scope command. Features: RWE',  '*IDN?',{F:'W',
     SET:set_instrCmdS}],
-['instrCmdR',   'Response of the instrCmdS',  SPV(''), {}],
-['actOnEvent',  'Enables the saving waveforms on trigger', SPV(['0','1'],'WD'),{
+['instrCmdR',   'Response of the instrCmdS',  '', {}],
+['actOnEvent',  'Enables the saving waveforms on trigger', ['0','1'],{F:'WD',
     SCPI:'ACTONEVent:ENable', SET:set_scpi}],
-['aOE_Limit',   'Limit of Action On Event saves', SPV(80,'W'),{
+['aOE_Limit',   'Limit of Action On Event saves', 80,{F:'W',
     SCPI:'ACTONEVent:LIMITCount', SET:set_scpi}],
 #``````````````````Horizontal PVs
-['horzMode',    'Horizontal mode', SPV(['AUTO','MANUAL'],'WD'),{
+['horzMode',    'Horizontal mode', ['AUTO','MANUAL'],{F:'WD',
     SCPI:'HORizontal:MODE', SET:set_scpi}],
-['recLengthS',  'Number of points per waveform', SPV(1000.,'W'),{
+['recLengthS',  'Number of points per waveform', 1000.,{F:'W',
     SCPI:'HORizontal:RECOrdlength', SET:set_scpi}],
-['recLengthR',  'Number of points per waveform read', SPV(0.),{
+['recLengthR',  'Number of points per waveform read', 0.,{
     SCPI:'HORizontal:RECOrdlength'}],
-['samplingRate', 'Sampling Rate',  SPV(0.), {U:'Hz',
+['samplingRate', 'Sampling Rate',  0., {U:'Hz',
     SCPI:'HORizontal:SAMPLERate'}],
-['timePerDiv', f'Horizontal scale (1/{NDIVSX} of full scale)', SPV(2.e-6,'W'), {U:'S/du',
+['timePerDiv', f'Horizontal scale (1/{NDIVSX} of full scale)', 2.e-6, {F:'W', U:'S/du',
     SCPI: 'HORizontal:SCAle', SET:set_scpi}],
-['tAxis',       'Horizontal axis array', SPV([0.]), {U:'S'}],
+['tAxis',       'Horizontal axis array', [0.], {U:'S'}],
 
 #``````````````````Trigger PVs
 ['trigger',     'Click to force trigger event to occur',
-    SPV(['Trigger','Force!'],'WD'), {SET:set_trigger}],
+    ['Trigger','Force!'], {F:'WD', SET:set_trigger}],
 ['trigType',   'Trigger type',
-    SPV(['EDGE','WIDTH','TIMEOUT','RUNT','WINDOW','LOGIC','SETHOLD','TRANSITION','BUS'],'WD'),{
+    ['EDGE','WIDTH','TIMEOUT','RUNT','WINDOW','LOGIC','SETHOLD','TRANSITION','BUS'],{F:'WD',
     SCPI:'TRIGger:A:TYPE',SET:set_scpi}],
-['trigCoupling',   'Trigger coupling', SPV(['DC','HFREJ','LFREJ','NOISEREJ'],'D'),{
+['trigCoupling',   'Trigger coupling', ['DC','HFREJ','LFREJ','NOISEREJ'],{F:'D',
     SCPI:'TRIGger:A:EDGE:COUPling'}],
-['trigState',   'Current trigger status', SPV('?'),{
+['trigState',   'Current trigger status', '?',{
     SCPI:'TRIGger:STATE'}],
-['trigMode',   'Trigger mode', SPV(['AUTO','NORMAL'],'WD'),{
+['trigMode',   'Trigger mode', ['AUTO','NORMAL'],{F:'WD',
     SCPI:'TRIGger:A:MODe',SET:set_scpi}],
-['trigDelay',   'Horizontal delay time', SPV(0.), {U:'S',
+['trigDelay',   'Horizontal delay time', 0., {U:'S',
     SCPI:'HORizontal:DELay:TIMe'}],
 ['trigSource', 'Trigger source',
-    SPV(pargs.channelList+['LINE','AUX'],'WD'),{
+    pargs.channelList+['LINE','AUX'],{F:'WD',
     SCPI:'TRIGger:A:EDGE:SOUrce',SET:set_scpi}],
-['trigSlope',  'Trigger slope', SPV(['RISE','FALL','EITHER'],'WD'),{
+['trigSlope',  'Trigger slope', ['RISE','FALL','EITHER'],{F:'WD',
     SCPI:'TRIGger:A:EDGE:SLOpe',SET:set_scpi}],
-['trigLevel', 'Trigger level', SPV(0.,'W'), {U:'V',SET:set_trigLevel}],
+['trigLevel', 'Trigger level', 0., {F:'W', U:'V',SET:set_trigLevel}],
 #``````````````````Auxiliary PVs
-['timing',  'Performance timing: trigger,waveforms,preamble,query,publish', SPV([0.]), {U:'S'}],
+['timing',  'Performance timing: trigger,waveforms,preamble,query,publish', [0.], {U:'S'}],
     ]
 
     #``````````````Templates for channel-related PVs.
     # The <n> in the name will be replaced with channel number.
-    # Important: SPV cannot be used in this list!
     ChannelTemplates = [
-['c<n>OnOff', 'Enable/disable channel', (['1','0'],'WD'),{
-    SCPI:'DISplay:WAVEView1:CH<n>:STATE', SET:set_scpi}], #for Rigol:SCPI:'CH<n>:STATE
-['c<n>Coupling', 'Channel coupling', (['DC','AC','DCREJ'],'WD'),{
+['c<n>OnOff', 'Enable/disable channel', ['1','0'],{F:'WD',
+    SCPI:'DISplay:WAVEView1:CH<n>:STATE', SET:set_scpi}],
+['c<n>Coupling', 'Channel coupling', ['DC','AC','DCREJ'],{F:'WD',
     SCPI:'CH<n>:COUPling', SET:set_scpi}],
-['c<n>VoltsPerDiv',  'Vertical scale',  (1E-3,'W'), {U:'V/du',
+['c<n>VoltsPerDiv',  'Vertical scale',  1E-3, {F:'W', U:'V/du',
     SCPI:'CH<n>:SCAle', SET:set_scpi, LL:500E-6, LH:10.}],
-['c<n>VoltOffset',  'Vertical offset',  (0.,'W'), {U:'V',
+['c<n>VoltOffset',  'Vertical offset',  0., {F:'W', U:'V',
     SCPI:'CH<n>:OFFSet', SET:set_scpi, LL:-10., LH:10.}],
-['c<n>Termination', 'Input termination', ('50.000','W'), {U:'Ohm',
+['c<n>Termination', 'Input termination', '50.000', {F:'W', U:'Ohm',
     SCPI:'CH<n>:TERmination', SET:set_scpi}],
-['c<n>Waveform', 'Waveform array',           ([0.],), {U:'du'}],
-['c<n>Mean',     'Mean of the waveform',     (0.,'A'), {U:'du'}],
-['c<n>Peak2Peak','Peak-to-peak amplitude',   (0.,'A'), {U:'du',**alarm}],
+['c<n>Waveform', 'Waveform array',           [0.], {U:'du'}],
+['c<n>Mean',     'Mean of the waveform',     0., {U:'du'}],
+['c<n>Peak2Peak','Peak-to-peak amplitude',   0., {U:'du'}],
     ]
     # extend PvDefs with channel-related PVs
     for ch in range(pargs.channels):
         for pvdef in ChannelTemplates:
             newpvdef = pvdef.copy()
             newpvdef[0] = pvdef[0].replace('<n>',f'{ch+1:02}')
-            newpvdef[2] = SPV(*pvdef[2])
             pvDefs.append(newpvdef)
     return pvDefs
 #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
@@ -162,11 +159,13 @@ def serverStateChanged(newState:str):
     if newState == 'Start':
         printi('start_device called')
         configure_scope()
+        adopt_local_setting()
+        with Threadlock:
+            C_.scope.write(':RUN')
     elif newState == 'Stop':
         printi('stop_device called')
     elif newState == 'Clear':
         printi('clear_device called')
-    adopt_local_setting()
 
 def set_setup(action_slot, *_):
     """setter for the setup PV"""
@@ -228,7 +227,8 @@ def set_scpi(value, pv, *_):
         printe(f'No SCPI defined for PV {pv.name}')
         return
     scpi = scpi.replace('<n>',pv.name[2])# replace <n> with channel number
-    scpi += f' {value}' if pv.writable else '?'
+    #TODO?scpi += f' {value}' if pv.writable else '?'
+    scpi += f' {value}'
     if pv.name == 'recLengthS':
         scpi = f':HORizontal:MODE MANUAL;:{scpi}'
         print(f'setting recLengthS: {scpi}')
@@ -574,9 +574,9 @@ def init():
     C_.yoff = [0.]*(pargs.channels+1)
     init_visa()
     make_readSettingQuery()
-    adopt_local_setting()
+    #adopt_local_setting()
     update_scopeParameters()
-    publish('version', __version__)
+    #publish('version', __version__)
 
 def periodicUpdate():
     """Called for infrequent updates"""
@@ -628,15 +628,15 @@ if __name__ == "__main__":
     C_.PvDefs = myPVDefs()
     PVs = init_epicsdev(pargs.prefix, C_.PvDefs, pargs.verbose, serverStateChanged)
 
-    # Initialize the device, using pargs if needed.
+    # Initialize the device
     init()
 
-    # Start the Server.
+    # Start the Server
     set_server('Start')
 
-    # Main loop
+    # Main loop with Server
     server = Server(providers=[PVs])
-    printi(f'Server for {pargs.prefix} started. Sleeping per cycle: {repr(pvv("sleep"))} S.')
+    printi(f'Server for {pargs.prefix} started...')
     while True:
         state = serverState()
         if state.startswith('Exit'):
@@ -645,4 +645,5 @@ if __name__ == "__main__":
             poll()
         if not sleep():
             periodicUpdate()
+    printi('Server is exited')
     printi('Server is exited')
