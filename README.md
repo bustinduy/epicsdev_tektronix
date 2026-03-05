@@ -27,7 +27,9 @@ Control GUI:
 - Performance timing diagnostics
 
 ## Command-line Options
-- `-c, --channels`: Number of channels per device (default: 4)
+- `-a, --autosave`: Autosave control
+- `-c, --recall`: if given: disable recalling of autosaved PVs 
+- `-C, --channels`: Number of channels per device (default: 4)
 - `-d, --device`: Device name for PV prefix (default: 'tektronix')
 - `-i, --index`: Device index for PV prefix (default: '0')
 - `-r, --resource`: VISA resource string (default: 'TCPIP::192.168.1.100::INSTR')

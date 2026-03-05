@@ -1,6 +1,6 @@
 """EPICS PVAccess server for Tektronix MSO oscilloscopes using epicsdev module."""
 # pylint: disable=invalid-name
-__version__ = 'v2.0.0 26-02-25'# Updated for epicsdev v3.x compatibility.
+__version__ = 'v2.0.1 26-03-05'# Enabled autosave and putLog functionality. Low limit for recLengthS was changed to 1000.
 # Note, visa INSTR works more reliably than SOCKET, but waveform acquisition is ~10 times slower
 #TODO: Timing does not match for 0.3 s: cycleTime=2.0, acquire_wf=0.7, sleep=1.0
 import sys
@@ -54,7 +54,7 @@ def myPVDefs():
 ['horzMode',    'Horizontal mode', ['AUTO','MANUAL'],{F:'WD',
     SCPI:'HORizontal:MODE', SET:set_scpi}],
 ['recLengthS',  'Number of points per waveform', 1000.,{F:'W',
-    SCPI:'HORizontal:RECOrdlength', SET:set_scpi}],
+    SCPI:'HORizontal:RECOrdlength', SET:set_scpi, LL:1000, LH:10000000}],
 ['recLengthR',  'Number of points per waveform read', 0.,{
     SCPI:'HORizontal:RECOrdlength'}],
 ['samplingRate', 'Sampling Rate',  0., {U:'Hz',
@@ -608,8 +608,15 @@ if __name__ == "__main__":
     # Argument parsing
     parser = argparse.ArgumentParser(description = __doc__,
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    epilog=f'{__version__}')
-    parser.add_argument('-c', '--channels', type=int, default=4, help=
+    epilog=f'{__version__}, epicsdev {epicsdev_version}')
+    parser.add_argument('-a', '--autosave', nargs='?', default='', help=
+    'Autosave control. If not given, then autosave is enabled with default file '\
+    'name /tmp/<device><index>.cache. ' \
+    'If given without argument, then autosave is disabled' \
+    'If a file name is given, then it is used for autosave.')
+    parser.add_argument('-c', '--recall', action='store_false', help=
+    'If given: Do not load initial values from pvCache file. That is useful when you want to start with default values, but do not want to disable autosave. By default, the initial values are loaded from the cache file if it exists.')
+    parser.add_argument('-C', '--channels', type=int, default=6, help=
     'Number of channels per device')
     parser.add_argument('-d', '--device', default='tektronix', help=
     'Device name, the PV name will be <device><index>:')
@@ -617,6 +624,8 @@ if __name__ == "__main__":
     'Device index, the PV name will be <device><index>:') 
     parser.add_argument('-r', '--resource', default='TCPIP::192.168.1.100::5025::SOCKET', help=
     'Resource string to access the device, e.g., TCPIP::192.168.1.100::INSTR. Note, the INSTR is more reliable, SOCKET is faster for long waveforms')
+    parser.add_argument('-p', '--putlogPV', default='putlog:dump', help=
+'Name of the PV where put operations are logged. If None, then put operations are not logged.')
     parser.add_argument('-v', '--verbose', action='count', default=0, help=
     'Show more log messages (-vv: show even more)') 
     pargs = parser.parse_args()
@@ -626,7 +635,9 @@ if __name__ == "__main__":
     # Initialize epicsdev and PVs
     pargs.prefix = f'{pargs.device}{pargs.index}:'
     C_.PvDefs = myPVDefs()
-    PVs = init_epicsdev(pargs.prefix, C_.PvDefs, pargs.verbose, serverStateChanged)
+    PVs = init_epicsdev(pargs.prefix, C_.PvDefs, pargs.verbose,
+        serverStateChanged, autosaveDir=pargs.autosave, recall=pargs.recall,
+        putlogPV=pargs.putlogPV)
 
     # Initialize the device
     init()
@@ -645,5 +656,4 @@ if __name__ == "__main__":
             poll()
         if not sleep():
             periodicUpdate()
-    printi('Server is exited')
     printi('Server is exited')
