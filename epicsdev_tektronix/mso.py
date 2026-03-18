@@ -616,14 +616,14 @@ if __name__ == "__main__":
     'If a file name is given, then it is used for autosave.')
     parser.add_argument('-c', '--recall', action='store_false', help=
     'If given: Do not load initial values from pvCache file. That is useful when you want to start with default values, but do not want to disable autosave. By default, the initial values are loaded from the cache file if it exists.')
-    parser.add_argument('-C', '--channels', type=int, default=6, help=
+    parser.add_argument('-C', '--channels', type=int, default=4, help=
     'Number of channels per device')
     parser.add_argument('-d', '--device', default='tektronix', help=
     'Device name, the PV name will be <device><index>:')
     parser.add_argument('-i', '--index', default='0', help=
     'Device index, the PV name will be <device><index>:') 
-    parser.add_argument('-r', '--resource', default='TCPIP::192.168.1.100::5025::SOCKET', help=
-    'Resource string to access the device, e.g., TCPIP::192.168.1.100::INSTR. Note, the INSTR is more reliable, SOCKET is faster for long waveforms')
+    parser.add_argument('-r', '--resource', default='TCPIP::192.168.2.194::4000::SOCKET', help=
+    'Resource string to access the device, e.g., TCPIP::192.168.2.194::4000::SOCKET. This default matches a local MSO44B setup; INSTR is often more reliable, while SOCKET is faster for long waveforms')
     parser.add_argument('-p', '--putlogPV', default='putlog:dump', help=
 'Name of the PV where put operations are logged. If None, then put operations are not logged.')
     parser.add_argument('-v', '--verbose', action='count', default=0, help=

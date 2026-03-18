@@ -11,6 +11,11 @@ and supports Tektronix MSO series oscilloscopes using SCPI commands as documente
 ## Installation
 This project requires Python 3.11 or newer.
 
+The defaults in this repository are currently tailored for a local Tektronix
+MSO44B setup with:
+- 4 channels
+- VISA resource `TCPIP::192.168.2.194::4000::SOCKET`
+
 Recommended local setup from a clone of the repository:
 
 ```bash
@@ -75,13 +80,16 @@ The smoke test checks that:
 - `-C, --channels`: Number of channels per device (default: 4)
 - `-d, --device`: Device name for PV prefix (default: 'tektronix')
 - `-i, --index`: Device index for PV prefix (default: '0')
-- `-r, --resource`: VISA resource string (default: 'TCPIP::192.168.1.100::INSTR')
+- `-r, --resource`: VISA resource string (default: 'TCPIP::192.168.2.194::4000::SOCKET')
 - `-v, --verbose`: Increase verbosity (-vv for debug output)
 
 ## Example Usage
 ```bash
-python -m epicsdev_tektronix.mso -r 'TCPIP::192.168.1.100::5025::SOCKET'
+python -m epicsdev_tektronix.mso -r 'TCPIP::192.168.2.194::4000::SOCKET'
 ```
+
+
+
 
 Control GUI:
 
