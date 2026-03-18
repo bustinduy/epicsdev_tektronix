@@ -9,13 +9,56 @@ and supports Tektronix MSO series oscilloscopes using SCPI commands as documente
 [Tektronix 4-5-6 Series MSO Programmer Manual](https://download.tek.com/manual/4-5-6-Series-MSO-Programmer_077130524.pdf).
 
 ## Installation
-```pip install epicsdev_tektronix```
+This project requires Python 3.11 or newer.
 
-For control GUI and plotting:
-```pip install pypeto,pvplot```
+Recommended local setup from a clone of the repository:
 
-Control GUI:
-```python -m pypeto -c path_to_repository/config -f epicsdev_tektronix```
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -r requirements.txt
+python -m pip install -e .
+```
+
+`requirements.txt` installs the full local environment:
+- core runtime dependencies for the server
+- GUI and plotting packages used by the repository config files
+- the missing GUI pieces required by `pypeto` and `pvplot`: `PyQt5` and `pyqtgraph`
+
+If you only want the server package without the GUI tools:
+
+```bash
+python -m pip install .
+```
+
+If you want the optional GUI stack when installing from package metadata:
+
+```bash
+python -m pip install ".[gui]"
+```
+
+For editable installs, use plain `python -m pip install -e .`. Do not add
+`--no-build-isolation` unless you also manage the build backend dependencies
+yourself.
+
+## Smoke Test
+Run the hardware-free smoke test after installation:
+
+```bash
+python demo/smoke_demo.py
+```
+
+To also verify the GUI stack:
+
+```bash
+python demo/smoke_demo.py --check-gui
+```
+
+The smoke test checks that:
+- the core Python dependencies import correctly
+- the package can build its PV definition table without a real instrument
+- the GUI modules import correctly when `--check-gui` is enabled
 
 ## Features
 - Support for Tektronix MSO oscilloscopes (configurable)
@@ -37,10 +80,14 @@ Control GUI:
 
 ## Example Usage
 ```bash
-python -m epicsdev_tektronix.mso -r'TCPIP::192.168.1.100::4000:SOCKET'
+python -m epicsdev_tektronix.mso -r 'TCPIP::192.168.1.100::5025::SOCKET'
 ```
+
 Control GUI:
-```python -m pypeto -c path_to_repository/config -f epicsdev_tektronix```
+
+```bash
+python -m pypeto -c config -f epicsdev_tektronix
+```
 
 ## Supported Tektronix Models
 - MSO44, MSO46, MSO48 (4 Series)
